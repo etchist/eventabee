@@ -1,0 +1,48 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+name = "eventabee"
+client_id = "your-client-id-here"
+application_url = "https://localhost:3000/"
+embedded = true
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_orders,read_customers,read_products,write_pixels,read_checkouts,write_subscriptions,read_subscriptions"
+
+[auth]
+redirect_urls = [
+  "https://localhost:3000/api/auth/callback",
+  "https://localhost:3000/auth/callback"
+]
+
+[webhooks]
+api_version = "2024-07"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/create" ]
+  uri = "/api/webhooks/orders/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/updated" ]
+  uri = "/api/webhooks/orders/updated"
+
+  [[webhooks.subscriptions]]
+  topics = [ "customers/create" ]
+  uri = "/api/webhooks/customers/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/create" ]
+  uri = "/api/webhooks/products/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/update" ]
+  uri = "/api/webhooks/products/update"
+
+[app_proxy]
+# Uncomment the following line to enable app proxy
+# url = "/proxy"
+# subpath = "eventabee"
+# prefix = "apps"
+
+[pos]
+embedded = false

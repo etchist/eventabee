@@ -1,0 +1,58 @@
+{
+  "name": "shopify-app",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/shopify-app/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/shopify-app",
+        "main": "apps/shopify-app/src/main.ts",
+        "tsConfig": "apps/shopify-app/tsconfig.app.json",
+        "assets": ["apps/shopify-app/src/assets"]
+      },
+      "configurations": {
+        "production": {
+          "fileReplacements": [
+            {
+              "replace": "apps/shopify-app/src/environments/environment.ts",
+              "with": "apps/shopify-app/src/environments/environment.prod.ts"
+            }
+          ]
+        }
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "shopify-app:build",
+        "inspect": true,
+        "port": 3000
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "shopify-app:build"
+        },
+        "production": {
+          "buildTarget": "shopify-app:build:production",
+          "inspect": false
+        }
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "jestConfig": "apps/shopify-app/jest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"]
+    }
+  },
+  "tags": []
+}
