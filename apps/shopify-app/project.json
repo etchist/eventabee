@@ -5,13 +5,17 @@
   "projectType": "application",
   "targets": {
     "build": {
-      "executor": "@nx/js:tsc",
+      "executor": "@nx/webpack:webpack",
       "outputs": ["{options.outputPath}"],
       "options": {
         "outputPath": "dist/apps/shopify-app",
         "main": "apps/shopify-app/src/main.ts",
         "tsConfig": "apps/shopify-app/tsconfig.app.json",
-        "assets": ["apps/shopify-app/src/assets"]
+        "assets": ["apps/shopify-app/src/assets"],
+        "target": "node",
+        "compiler": "tsc",
+        "webpackConfig": "apps/shopify-app/webpack.config.js",
+        "generatePackageJson": true
       },
       "configurations": {
         "production": {
@@ -51,7 +55,10 @@
     },
     "lint": {
       "executor": "@nx/eslint:lint",
-      "outputs": ["{options.outputFile}"]
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["apps/shopify-app/**/*.ts"]
+      }
     }
   },
   "tags": []

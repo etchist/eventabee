@@ -1,114 +1,93 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Page,
   Layout,
   Card,
-  Button,
   Banner,
   Spinner,
   Toast,
   Frame,
 } from '@shopify/polaris';
-import { useAppBridge } from '@shopify/app-bridge-react';
-import { Redirect } from '@shopify/app-bridge/actions';
 
 import { BillingStatus } from '../components/BillingStatus';
 import { ConnectionsCard } from '../components/ConnectionsCard';
 import { EventStatsCard } from '../components/EventStatsCard';
 import { ConfigurationCard } from '../components/ConfigurationCard';
-import { useApi } from '../hooks/useApi';
+import { 
+  useBilling, 
+  useBillingRequired,
+  useConfig,
+  useConnections,
+  useEventStats,
+  type AppConfig
+} from '../hooks';
 
 export default function Index() {
-  const app = useAppBridge();
-  const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
-  const [billingRequired, setBillingRequired] = useState(false);
   
-  const { 
-    config, 
-    stats, 
-    connectionStatus,
+  // React Query hooks
+  const {
+    createSubscription,
+    isLoading: billingLoading,
+    isError: billingError
+  } = useBilling();
+  
+  const { billingRequired, isCheckingBilling } = useBillingRequired();
+  
+  const {
+    config,
     updateConfig,
+    isLoading: configLoading,
+    isUpdating: configUpdating
+  } = useConfig();
+  
+  const {
+    stats,
+    isLoading: statsLoading
+  } = useEventStats();
+  
+  const {
+    connectionStatus,
     testConnection,
-    loading: apiLoading 
-  } = useApi();
+    isLoading: connectionsLoading,
+    isTesting
+  } = useConnections();
+  
+  const isLoading = isCheckingBilling || billingLoading || configLoading || statsLoading || connectionsLoading;
 
-  useEffect(() => {
-    checkBillingStatus();
-  }, []);
-
-  const checkBillingStatus = async () => {
+  const handleCreateBilling = async (plan = 'basic') => {
     try {
-      const response = await fetch('/api/billing/status', {
-        headers: {
-          'Authorization': `Bearer ${await getSessionToken()}`,
-        },
-      });
-      
-      const billingData = await response.json();
-      
-      if (!billingData.hasActiveSubscription) {
-        setBillingRequired(true);
-      }
-    } catch (error) {
-      console.error('Error checking billing status:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getSessionToken = async () => {
-    // This would get the session token from App Bridge
-    return 'session-token';
-  };
-
-  const handleCreateBilling = async () => {
-    try {
-      const response = await fetch('/api/billing/create', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${await getSessionToken()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          plan: 'basic',
-        }),
-      });
-      
-      const { confirmationUrl } = await response.json();
-      
-      if (confirmationUrl) {
-        const redirect = Redirect.create(app);
-        redirect.dispatch(Redirect.Action.REMOTE, confirmationUrl);
-      }
-    } catch (error) {
+      await createSubscription({ plan });
+    } catch {
       setToastMessage('Error creating billing subscription');
     }
   };
 
-  const handleSaveConfig = async (newConfig: any) => {
+  const handleSaveConfig = async (newConfig: AppConfig) => {
     try {
       await updateConfig(newConfig);
       setToastMessage('Configuration saved successfully');
-    } catch (error) {
+    } catch {
       setToastMessage('Error saving configuration');
     }
   };
 
-  const handleTestConnection = async (service: string) => {
-    try {
-      const result = await testConnection(service);
-      setToastMessage(
-        result.success 
-          ? `${service} connection successful` 
-          : `${service} connection failed`
-      );
-    } catch (error) {
-      setToastMessage(`Error testing ${service} connection`);
-    }
+  const handleTestConnection = (service: string) => {
+    testConnection(service, {
+      onSuccess: (result) => {
+        setToastMessage(
+          result.success 
+            ? `${service} connection successful` 
+            : `${service} connection failed`
+        );
+      },
+      onError: () => {
+        setToastMessage(`Error testing ${service} connection`);
+      }
+    });
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Page>
         <Layout>
@@ -116,8 +95,23 @@ export default function Index() {
             <Card>
               <div style={{ padding: '2rem', textAlign: 'center' }}>
                 <Spinner size="large" />
+                <p style={{ marginTop: '1rem' }}>Loading dashboard...</p>
               </div>
             </Card>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
+
+  if (billingError) {
+    return (
+      <Page>
+        <Layout>
+          <Layout.Section>
+            <Banner status="critical" title="Error loading billing information">
+              <p>We couldn't load your billing information. Please refresh the page or contact support.</p>
+            </Banner>
           </Layout.Section>
         </Layout>
       </Page>
@@ -145,7 +139,7 @@ export default function Index() {
           </Layout.Section>
           
           <Layout.Section>
-            <BillingStatus onSubscribe={handleCreateBilling} />
+            <BillingStatus onSubscribe={(plan) => handleCreateBilling(plan)} />
           </Layout.Section>
         </Layout>
       </Page>
@@ -160,14 +154,14 @@ export default function Index() {
       >
         <Layout>
           <Layout.Section oneHalf>
-            <EventStatsCard stats={stats} loading={apiLoading} />
+            <EventStatsCard stats={stats} loading={statsLoading} />
           </Layout.Section>
           
           <Layout.Section oneHalf>
             <ConnectionsCard 
               status={connectionStatus} 
               onTest={handleTestConnection}
-              loading={apiLoading}
+              loading={connectionsLoading || isTesting}
             />
           </Layout.Section>
           
@@ -175,7 +169,7 @@ export default function Index() {
             <ConfigurationCard 
               config={config}
               onSave={handleSaveConfig}
-              loading={apiLoading}
+              loading={configLoading || configUpdating}
             />
           </Layout.Section>
         </Layout>

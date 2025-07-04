@@ -45,7 +45,7 @@ export type SegmentEventType = typeof SEGMENT_EVENT_TYPES[number];
 export const createShopifyEvent = (
   eventType: ShopifyEvent['eventType'],
   shopDomain: string,
-  properties: Record<string, any> = {},
+  properties: Record<string, unknown> = {},
   context?: ShopifyEvent['context']
 ): Omit<ShopifyEvent, 'id' | 'timestamp'> => ({
   source: 'shopify',
@@ -67,7 +67,7 @@ export const createSegmentEvent = (
 export const createFacebookEvent = (
   event_name: string,
   user_data: FacebookEvent['user_data'],
-  custom_data?: Record<string, any>
+  custom_data?: Record<string, unknown>
 ): Omit<FacebookEvent, 'event_time'> => ({
   event_name,
   user_data,

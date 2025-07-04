@@ -1,14 +1,14 @@
-import * as express from 'express';
+import { Router, Request, Response } from 'express';
 import { logger } from '@eventabee/shared-utils';
 import { ConfigService } from '../services/config-service';
 import { EventProcessor } from '../services/event-processor';
 
-export const apiRoutes = express.Router();
+export const apiRoutes = Router();
 
 const configService = new ConfigService();
 const eventProcessor = new EventProcessor();
 
-apiRoutes.get('/config', async (req, res) => {
+apiRoutes.get('/config', async (req: Request, res: Response) => {
   try {
     const session = res.locals.shopify?.session;
     if (!session?.shop) {
@@ -23,7 +23,7 @@ apiRoutes.get('/config', async (req, res) => {
   }
 });
 
-apiRoutes.post('/config', async (req, res) => {
+apiRoutes.post('/config', async (req: Request, res: Response) => {
   try {
     const session = res.locals.shopify?.session;
     if (!session?.shop) {
@@ -38,7 +38,7 @@ apiRoutes.post('/config', async (req, res) => {
   }
 });
 
-apiRoutes.get('/events/stats', async (req, res) => {
+apiRoutes.get('/events/stats', async (req: Request, res: Response) => {
   try {
     const session = res.locals.shopify?.session;
     if (!session?.shop) {
@@ -53,7 +53,7 @@ apiRoutes.get('/events/stats', async (req, res) => {
   }
 });
 
-apiRoutes.post('/events/test', async (req, res) => {
+apiRoutes.post('/events/test', async (req: Request, res: Response) => {
   try {
     const session = res.locals.shopify?.session;
     if (!session?.shop) {
@@ -70,7 +70,7 @@ apiRoutes.post('/events/test', async (req, res) => {
   }
 });
 
-apiRoutes.get('/connections/status', async (req, res) => {
+apiRoutes.get('/connections/status', async (req: Request, res: Response) => {
   try {
     const session = res.locals.shopify?.session;
     if (!session?.shop) {

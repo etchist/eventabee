@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { 
   Card, 
   Stack, 
@@ -5,46 +6,53 @@ import {
   Button, 
   Badge, 
   Icon,
-  Spinner 
+  Spinner,
+  Banner 
 } from '@shopify/polaris';
 import { 
   ConnectIcon, 
   AlertCircleIcon 
 } from '@shopify/polaris-icons';
+import { useConnections } from '../hooks/useConnections';
 
-interface ConnectionStatus {
-  segment: {
-    connected: boolean;
-    lastSync?: string;
-    error?: string;
-  };
-  facebook: {
-    connected: boolean;
-    lastSync?: string;
-    error?: string;
-  };
-  browserless: {
-    connected: boolean;
-    lastSync?: string;
-    error?: string;
-  };
-}
 
 interface ConnectionsCardProps {
-  status: ConnectionStatus | null;
   onTest: (service: string) => void;
-  loading: boolean;
 }
 
-export function ConnectionsCard({ status, onTest, loading }: ConnectionsCardProps) {
-  if (loading || !status) {
+export function ConnectionsCard({ onTest }: ConnectionsCardProps) {
+  const { data: status, isLoading, isError } = useConnections();
+  const [testingService, setTestingService] = useState<string | null>(null);
+
+  const handleTest = async (service: string) => {
+    setTestingService(service);
+    try {
+      await onTest(service);
+    } finally {
+      setTestingService(null);
+    }
+  };
+
+  if (isLoading) {
     return (
-      <Card>
+      <Card title="Integration Status">
         <Card.Section>
           <Stack distribution="center">
             <Spinner size="small" />
             <Text as="p">Loading connection status...</Text>
           </Stack>
+        </Card.Section>
+      </Card>
+    );
+  }
+
+  if (isError || !status) {
+    return (
+      <Card title="Integration Status">
+        <Card.Section>
+          <Banner status="critical" title="Error loading connections">
+            Unable to load connection status. Please refresh the page.
+          </Banner>
         </Card.Section>
       </Card>
     );
@@ -93,7 +101,9 @@ export function ConnectionsCard({ status, onTest, loading }: ConnectionsCardProp
                 
                 <Button
                   size="slim"
-                  onClick={() => onTest(connection.key)}
+                  onClick={() => handleTest(connection.key)}
+                  loading={testingService === connection.key}
+                  disabled={testingService !== null && testingService !== connection.key}
                 >
                   Test
                 </Button>

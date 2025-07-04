@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Card, 
   FormLayout, 
@@ -8,8 +8,10 @@ import {
   Stack,
   Text,
   Collapsible,
-  Banner
+  Banner,
+  Spinner
 } from '@shopify/polaris';
+import { useConfig } from '../hooks/useConfig';
 
 interface AppConfig {
   segment: {
@@ -29,29 +31,39 @@ interface AppConfig {
 }
 
 interface ConfigurationCardProps {
-  config: AppConfig | null;
   onSave: (config: AppConfig) => void;
-  loading: boolean;
 }
 
-export function ConfigurationCard({ config, onSave, loading }: ConfigurationCardProps) {
-  const [formData, setFormData] = useState<AppConfig>(
-    config || {
-      segment: { enabled: false, writeKey: '' },
-      facebook: { enabled: false, accessToken: '', pixelId: '' },
-      browserless: { enabled: false, token: '', url: '' },
-    }
-  );
+export function ConfigurationCard({ onSave }: ConfigurationCardProps) {
+  const { data: config, isLoading, isError } = useConfig();
+  const [formData, setFormData] = useState<AppConfig>({
+    segment: { enabled: false, writeKey: '' },
+    facebook: { enabled: false, accessToken: '', pixelId: '' },
+    browserless: { enabled: false, token: '', url: '' },
+  });
   
   const [segmentOpen, setSegmentOpen] = useState(false);
   const [facebookOpen, setFacebookOpen] = useState(false);
   const [browserlessOpen, setBrowserlessOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = () => {
-    onSave(formData);
+  // Update form data when config is loaded
+  useEffect(() => {
+    if (config) {
+      setFormData(config);
+    }
+  }, [config]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onSave(formData);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const updateField = (section: keyof AppConfig, field: string, value: any) => {
+  const updateField = (section: keyof AppConfig, field: string, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
       [section]: {
@@ -60,6 +72,31 @@ export function ConfigurationCard({ config, onSave, loading }: ConfigurationCard
       },
     }));
   };
+
+  if (isLoading) {
+    return (
+      <Card title="Integration Configuration">
+        <Card.Section>
+          <Stack distribution="center">
+            <Spinner size="small" />
+            <Text as="p">Loading configuration...</Text>
+          </Stack>
+        </Card.Section>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card title="Integration Configuration">
+        <Card.Section>
+          <Banner status="critical" title="Error loading configuration">
+            Unable to load configuration. Please refresh the page.
+          </Banner>
+        </Card.Section>
+      </Card>
+    );
+  }
 
   return (
     <Card title="Integration Configuration">
@@ -208,7 +245,7 @@ export function ConfigurationCard({ config, onSave, loading }: ConfigurationCard
           <Button
             primary
             onClick={handleSave}
-            loading={loading}
+            loading={isSaving}
             fullWidth
           >
             Save Configuration

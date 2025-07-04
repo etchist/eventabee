@@ -8,4 +8,5 @@ export const environment = {
   databaseUrl: process.env.DATABASE_URL || 'postgresql://localhost:5432/eventabee',
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   encryptionKey: process.env.ENCRYPTION_KEY || 'default-key-change-in-production',
+  browserlessUrl: process.env.BROWSERLESS_URL || 'https://chrome.browserless.io',
 };

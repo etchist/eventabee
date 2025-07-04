@@ -5,6 +5,21 @@
   "references": [
     {
       "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "../../libs/shared-utils/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/event-core/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/shopify-client/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/segment-client/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/facebook-client/tsconfig.lib.json"
     }
   ],
   "compilerOptions": {

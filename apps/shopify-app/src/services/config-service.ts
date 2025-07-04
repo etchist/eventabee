@@ -1,5 +1,7 @@
 import { logger, CryptoUtil } from '@eventabee/shared-utils';
 import { environment } from '../environments/environment';
+import { prisma } from './database-service';
+import { Shop, EventMapping } from '../../../../generated/prisma';
 
 export interface AppConfig {
   shop: string;
@@ -36,96 +38,143 @@ export interface AppConfig {
 }
 
 export class ConfigService {
-  private configs: Map<string, AppConfig> = new Map();
-
   async getConfig(shop: string): Promise<AppConfig> {
-    let config = this.configs.get(shop);
+    let shopRecord = await prisma.shop.findUnique({
+      where: { shop },
+      include: { eventMappings: true },
+    });
     
-    if (!config) {
-      config = this.createDefaultConfig(shop);
-      this.configs.set(shop, config);
-      logger.info('Created default config for shop', { shop });
+    if (!shopRecord) {
+      shopRecord = await this.createDefaultShop(shop);
     }
     
-    return config;
+    return this.mapShopToConfig(shopRecord);
   }
 
   async updateConfig(shop: string, updates: Partial<AppConfig>): Promise<AppConfig> {
-    const currentConfig = await this.getConfig(shop);
-    
-    const updatedConfig: AppConfig = {
-      ...currentConfig,
-      ...updates,
-      shop,
-    };
+    const shopRecord = await prisma.shop.findUnique({
+      where: { shop },
+    });
 
-    if (updates.segment?.writeKey) {
-      updatedConfig.segment.writeKey = CryptoUtil.encrypt(
-        updates.segment.writeKey,
-        environment.encryptionKey
-      );
+    if (!shopRecord) {
+      throw new Error(`Shop ${shop} not found`);
     }
 
-    if (updates.facebook?.accessToken) {
-      updatedConfig.facebook.accessToken = CryptoUtil.encrypt(
-        updates.facebook.accessToken,
-        environment.encryptionKey
-      );
+    const updateData: any = {};
+
+    // Handle segment updates
+    if (updates.segment) {
+      if (updates.segment.enabled !== undefined) {
+        updateData.segmentEnabled = updates.segment.enabled;
+      }
+      if (updates.segment.writeKey !== undefined) {
+        updateData.segmentWriteKey = updates.segment.writeKey ? 
+          CryptoUtil.encrypt(updates.segment.writeKey, environment.encryptionKey) : '';
+      }
+      if (updates.segment.lastSync) {
+        updateData.segmentLastSync = new Date(updates.segment.lastSync);
+      }
+      if (updates.segment.lastError !== undefined) {
+        updateData.segmentLastError = updates.segment.lastError;
+      }
     }
 
-    if (updates.browserless?.token) {
-      updatedConfig.browserless.token = CryptoUtil.encrypt(
-        updates.browserless.token,
-        environment.encryptionKey
-      );
+    // Handle facebook updates
+    if (updates.facebook) {
+      if (updates.facebook.enabled !== undefined) {
+        updateData.facebookEnabled = updates.facebook.enabled;
+      }
+      if (updates.facebook.accessToken !== undefined) {
+        updateData.facebookAccessToken = updates.facebook.accessToken ? 
+          CryptoUtil.encrypt(updates.facebook.accessToken, environment.encryptionKey) : '';
+      }
+      if (updates.facebook.pixelId !== undefined) {
+        updateData.facebookPixelId = updates.facebook.pixelId;
+      }
+      if (updates.facebook.lastSync) {
+        updateData.facebookLastSync = new Date(updates.facebook.lastSync);
+      }
+      if (updates.facebook.lastError !== undefined) {
+        updateData.facebookLastError = updates.facebook.lastError;
+      }
     }
 
-    this.configs.set(shop, updatedConfig);
+    // Handle browserless updates
+    if (updates.browserless) {
+      if (updates.browserless.enabled !== undefined) {
+        updateData.browserlessEnabled = updates.browserless.enabled;
+      }
+      if (updates.browserless.token !== undefined) {
+        updateData.browserlessToken = updates.browserless.token ? 
+          CryptoUtil.encrypt(updates.browserless.token, environment.encryptionKey) : '';
+      }
+      if (updates.browserless.url !== undefined) {
+        updateData.browserlessUrl = updates.browserless.url;
+      }
+      if (updates.browserless.lastSync) {
+        updateData.browserlessLastSync = new Date(updates.browserless.lastSync);
+      }
+      if (updates.browserless.lastError !== undefined) {
+        updateData.browserlessLastError = updates.browserless.lastError;
+      }
+    }
+
+    // Handle webhooks updates
+    if (updates.webhooks?.enabled) {
+      updateData.webhooksEnabled = updates.webhooks.enabled;
+    }
+
+    // Update shop record
+    const updatedShop = await prisma.shop.update({
+      where: { id: shopRecord.id },
+      data: updateData,
+      include: { eventMappings: true },
+    });
+
+    // Handle event mapping updates
+    if (updates.eventMapping) {
+      for (const [shopifyEvent, mapping] of Object.entries(updates.eventMapping)) {
+        await prisma.eventMapping.upsert({
+          where: {
+            shopId_shopifyEvent: {
+              shopId: shopRecord.id,
+              shopifyEvent,
+            },
+          },
+          update: {
+            segmentEvent: mapping.segment,
+            facebookEvent: mapping.facebook,
+            enabled: mapping.enabled,
+          },
+          create: {
+            shopId: shopRecord.id,
+            shopifyEvent,
+            segmentEvent: mapping.segment,
+            facebookEvent: mapping.facebook,
+            enabled: mapping.enabled,
+          },
+        });
+      }
+
+      // Refresh the shop record with updated mappings
+      const refreshedShop = await prisma.shop.findUnique({
+        where: { id: shopRecord.id },
+        include: { eventMappings: true },
+      });
+      
+      if (refreshedShop) {
+        return this.mapShopToConfig(refreshedShop);
+      }
+    }
     
     logger.info('Updated config for shop', { 
       shop, 
-      segmentEnabled: updatedConfig.segment.enabled,
-      facebookEnabled: updatedConfig.facebook.enabled,
-      browserlessEnabled: updatedConfig.browserless.enabled
+      segmentEnabled: updatedShop.segmentEnabled,
+      facebookEnabled: updatedShop.facebookEnabled,
+      browserlessEnabled: updatedShop.browserlessEnabled
     });
     
-    return updatedConfig;
-  }
-
-  private createDefaultConfig(shop: string): AppConfig {
-    return {
-      shop,
-      segment: {
-        enabled: false,
-        writeKey: '',
-      },
-      facebook: {
-        enabled: false,
-        accessToken: '',
-        pixelId: '',
-      },
-      browserless: {
-        enabled: false,
-        token: '',
-        url: environment.browserlessUrl,
-      },
-      eventMapping: {
-        page_view: { segment: 'Page Viewed', facebook: 'PageView', enabled: true },
-        product_view: { segment: 'Product Viewed', facebook: 'ViewContent', enabled: true },
-        add_to_cart: { segment: 'Product Added', facebook: 'AddToCart', enabled: true },
-        checkout_started: { segment: 'Checkout Started', facebook: 'InitiateCheckout', enabled: true },
-        order_placed: { segment: 'Order Completed', facebook: 'Purchase', enabled: true },
-        customer_created: { segment: 'User Registered', facebook: 'CompleteRegistration', enabled: true },
-      },
-      webhooks: {
-        enabled: [
-          'orders/create',
-          'orders/updated',
-          'customers/create',
-          'products/create',
-        ],
-      },
-    };
+    return this.mapShopToConfig(updatedShop);
   }
 
   async getDecryptedConfig(shop: string): Promise<AppConfig> {
@@ -170,5 +219,76 @@ export class ConfigService {
     }
     
     return decrypted;
+  }
+
+  private async createDefaultShop(shop: string): Promise<Shop & { eventMappings: EventMapping[] }> {
+    const defaultMappings = [
+      { shopifyEvent: 'page_view', segmentEvent: 'Page Viewed', facebookEvent: 'PageView', enabled: true },
+      { shopifyEvent: 'product_view', segmentEvent: 'Product Viewed', facebookEvent: 'ViewContent', enabled: true },
+      { shopifyEvent: 'add_to_cart', segmentEvent: 'Product Added', facebookEvent: 'AddToCart', enabled: true },
+      { shopifyEvent: 'checkout_started', segmentEvent: 'Checkout Started', facebookEvent: 'InitiateCheckout', enabled: true },
+      { shopifyEvent: 'order_placed', segmentEvent: 'Order Completed', facebookEvent: 'Purchase', enabled: true },
+      { shopifyEvent: 'customer_created', segmentEvent: 'User Registered', facebookEvent: 'CompleteRegistration', enabled: true },
+    ];
+
+    const shopRecord = await prisma.shop.create({
+      data: {
+        shop,
+        browserlessUrl: environment.browserlessUrl,
+        webhooksEnabled: [
+          'orders/create',
+          'orders/updated', 
+          'customers/create',
+          'products/create',
+        ],
+        eventMappings: {
+          create: defaultMappings,
+        },
+      },
+      include: { eventMappings: true },
+    });
+
+    logger.info('Created default config for shop', { shop });
+    return shopRecord;
+  }
+
+  private mapShopToConfig(shop: Shop & { eventMappings: EventMapping[] }): AppConfig {
+    const eventMapping: AppConfig['eventMapping'] = {};
+    
+    for (const mapping of shop.eventMappings) {
+      eventMapping[mapping.shopifyEvent] = {
+        segment: mapping.segmentEvent || undefined,
+        facebook: mapping.facebookEvent || undefined,
+        enabled: mapping.enabled,
+      };
+    }
+
+    return {
+      shop: shop.shop,
+      segment: {
+        enabled: shop.segmentEnabled,
+        writeKey: shop.segmentWriteKey,
+        lastSync: shop.segmentLastSync?.toISOString(),
+        lastError: shop.segmentLastError || undefined,
+      },
+      facebook: {
+        enabled: shop.facebookEnabled,
+        accessToken: shop.facebookAccessToken,
+        pixelId: shop.facebookPixelId,
+        lastSync: shop.facebookLastSync?.toISOString(),
+        lastError: shop.facebookLastError || undefined,
+      },
+      browserless: {
+        enabled: shop.browserlessEnabled,
+        token: shop.browserlessToken,
+        url: shop.browserlessUrl,
+        lastSync: shop.browserlessLastSync?.toISOString(),
+        lastError: shop.browserlessLastError || undefined,
+      },
+      eventMapping,
+      webhooks: {
+        enabled: shop.webhooksEnabled,
+      },
+    };
   }
 }

@@ -5,7 +5,7 @@ export interface BaseEvent {
   userId?: string;
   anonymousId?: string;
   source: 'shopify' | 'custom';
-  properties?: Record<string, any>;
+  properties?: Record<string, unknown>;
   context?: EventContext;
 }
 
@@ -21,6 +21,7 @@ export interface EventContext {
     name: string;
     version: string;
   };
+  [key: string]: unknown;
 }
 
 export interface ShopifyEvent extends BaseEvent {
@@ -38,11 +39,11 @@ export interface SegmentEvent {
   event?: string;
   userId?: string;
   anonymousId?: string;
-  properties?: Record<string, any>;
-  traits?: Record<string, any>;
+  properties?: Record<string, unknown>;
+  traits?: Record<string, unknown>;
   timestamp?: string;
-  context?: Record<string, any>;
-  integrations?: Record<string, any>;
+  context?: Record<string, unknown>;
+  integrations?: Record<string, unknown>;
 }
 
 export interface FacebookEvent {
@@ -56,7 +57,7 @@ export interface FacebookEvent {
     fbc?: string;
     fbp?: string;
   };
-  custom_data?: Record<string, any>;
+  custom_data?: Record<string, unknown>;
   event_source_url?: string;
   action_source: 'website' | 'app' | 'phone_call' | 'chat' | 'email' | 'other';
   event_id?: string;
@@ -89,6 +90,6 @@ export interface EventTransformer<T extends BaseEvent, U> {
 export interface EventDestination {
   name: string;
   isEnabled: boolean;
-  config: Record<string, any>;
-  send(events: any[]): Promise<void>;
+  config: Record<string, unknown>;
+  send(events: BaseEvent[]): Promise<void>;
 }

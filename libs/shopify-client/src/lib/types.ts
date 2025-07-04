@@ -18,7 +18,7 @@ export interface ShopifySession {
 export interface ShopifyWebhookPayload {
   topic: string;
   shop_domain: string;
-  payload: any;
+  payload: Record<string, unknown>;
 }
 
 export interface ShopifyOrder {
@@ -81,19 +81,19 @@ export interface ShopifyLineItem {
   gift_card: boolean;
   name: string;
   variant_inventory_management: string;
-  properties: any[];
+  properties: unknown[];
   product_exists: boolean;
   fulfillable_quantity: number;
   grams: number;
   price: string;
   total_discount: string;
   fulfillment_status: string;
-  price_set: any;
-  total_discount_set: any;
-  discount_allocations: any[];
-  duties: any[];
+  price_set: unknown;
+  total_discount_set: unknown;
+  discount_allocations: unknown[];
+  duties: unknown[];
   admin_graphql_api_id: string;
-  tax_lines: any[];
+  tax_lines: unknown[];
 }
 
 export interface ShopifyCustomer {
@@ -113,9 +113,9 @@ export interface ShopifyCustomer {
   currency: string;
   phone: string;
   addresses: ShopifyAddress[];
-  tax_exemptions: any[];
-  email_marketing_consent: any;
-  sms_marketing_consent: any;
+  tax_exemptions: unknown[];
+  email_marketing_consent: unknown;
+  sms_marketing_consent: unknown;
   admin_graphql_api_id: string;
   default_address: ShopifyAddress;
 }
@@ -155,7 +155,7 @@ export interface ShopifyFulfillment {
   tracking_numbers: string[];
   tracking_url: string;
   tracking_urls: string[];
-  receipt: any;
+  receipt: unknown;
   name: string;
   admin_graphql_api_id: string;
 }
@@ -168,11 +168,11 @@ export interface ShopifyRefund {
   user_id: number;
   processed_at: string;
   restock: boolean;
-  duties: any[];
+  duties: unknown[];
   admin_graphql_api_id: string;
-  refund_line_items: any[];
-  transactions: any[];
-  order_adjustments: any[];
+  refund_line_items: unknown[];
+  transactions: unknown[];
+  order_adjustments: unknown[];
 }
 
 export interface ShopifyProduct {
@@ -191,7 +191,7 @@ export interface ShopifyProduct {
   tags: string;
   admin_graphql_api_id: string;
   variants: ShopifyVariant[];
-  options: any[];
+  options: unknown[];
   images: ShopifyImage[];
   image: ShopifyImage;
 }

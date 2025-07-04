@@ -10,7 +10,7 @@ export interface LogEntry {
   message: string;
   timestamp: string;
   correlationId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class Logger {
@@ -25,23 +25,23 @@ export class Logger {
     this.correlationId = id;
   }
 
-  error(message: string, metadata?: Record<string, any>): void {
+  error(message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.ERROR, message, metadata);
   }
 
-  warn(message: string, metadata?: Record<string, any>): void {
+  warn(message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.WARN, message, metadata);
   }
 
-  info(message: string, metadata?: Record<string, any>): void {
+  info(message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.INFO, message, metadata);
   }
 
-  debug(message: string, metadata?: Record<string, any>): void {
+  debug(message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.DEBUG, message, metadata);
   }
 
-  private log(level: LogLevel, message: string, metadata?: Record<string, any>): void {
+  private log(level: LogLevel, message: string, metadata?: Record<string, unknown>): void {
     if (level <= this.level) {
       const entry: LogEntry = {
         level,

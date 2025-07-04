@@ -3,31 +3,34 @@ import {
   Stack, 
   Text, 
   ProgressBar,
-  Spinner 
+  Spinner,
+  Banner 
 } from '@shopify/polaris';
+import { useEventStats } from '../hooks/useEventStats';
 
-interface EventStats {
-  totalEvents: number;
-  successfulEvents: number;
-  failedEvents: number;
-  eventsByType: Record<string, number>;
-  destinationStats: Record<string, { sent: number; failed: number }>;
-}
+export function EventStatsCard() {
+  const { data: stats, isLoading, isError } = useEventStats();
 
-interface EventStatsCardProps {
-  stats: EventStats | null;
-  loading: boolean;
-}
-
-export function EventStatsCard({ stats, loading }: EventStatsCardProps) {
-  if (loading || !stats) {
+  if (isLoading) {
     return (
-      <Card>
+      <Card title="Event Analytics">
         <Card.Section>
           <Stack distribution="center">
             <Spinner size="small" />
             <Text as="p">Loading event statistics...</Text>
           </Stack>
+        </Card.Section>
+      </Card>
+    );
+  }
+
+  if (isError || !stats) {
+    return (
+      <Card title="Event Analytics">
+        <Card.Section>
+          <Banner status="critical" title="Error loading statistics">
+            Unable to load event statistics. Please refresh the page.
+          </Banner>
         </Card.Section>
       </Card>
     );

@@ -26,7 +26,7 @@ export class EventBuilder {
     return this;
   }
 
-  setProperties(properties: Record<string, any>): this {
+  setProperties(properties: Record<string, unknown>): this {
     this.event.properties = { ...this.event.properties, ...properties };
     return this;
   }

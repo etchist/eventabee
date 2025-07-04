@@ -5,7 +5,11 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "jsx": "preserve",
-    "lib": ["dom", "dom.iterable", "es6"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "es6"
+    ],
     "module": "esnext",
     "moduleResolution": "node",
     "noEmit": true,
@@ -13,13 +17,17 @@
     "skipLibCheck": true,
     "strict": false,
     "target": "es5",
-    "types": ["jest", "node"],
+    "types": [
+      "jest",
+      "node"
+    ],
     "incremental": true,
     "plugins": [
       {
         "name": "next"
       }
-    ]
+    ],
+    "isolatedModules": true
   },
   "include": [
     "**/*.ts",

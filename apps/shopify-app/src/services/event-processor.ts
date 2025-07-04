@@ -73,7 +73,7 @@ export class EventProcessor {
     return 1;
   }
 
-  private async startProcessing(): void {
+  private async startProcessing(): Promise<void> {
     setInterval(async () => {
       await this.queue.process({
         process: async (task) => {

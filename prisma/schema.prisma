@@ -1,0 +1,175 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Shop configuration with encrypted credentials
+model Shop {
+  id                      String              @id @default(uuid())
+  shop                    String              @unique
+  
+  // Segment configuration (encrypted)
+  segmentEnabled          Boolean             @default(false)
+  segmentWriteKey         String              @default("")
+  segmentLastSync         DateTime?
+  segmentLastError        String?
+  
+  // Facebook configuration (encrypted)
+  facebookEnabled         Boolean             @default(false)
+  facebookAccessToken     String              @default("")
+  facebookPixelId         String              @default("")
+  facebookLastSync        DateTime?
+  facebookLastError       String?
+  
+  // Browserless configuration (encrypted)
+  browserlessEnabled      Boolean             @default(false)
+  browserlessToken        String              @default("")
+  browserlessUrl          String              @default("")
+  browserlessLastSync     DateTime?
+  browserlessLastError    String?
+  
+  // Webhooks configuration
+  webhooksEnabled         String[]            @default([])
+  
+  // Timestamps
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  // Relations
+  subscription            Subscription?
+  eventStats              EventStats[]
+  eventLogs               EventLog[]
+  eventMappings           EventMapping[]
+  sessions                Session[]
+  
+  @@index([shop])
+}
+
+// Event mapping configuration
+model EventMapping {
+  id                      String              @id @default(uuid())
+  shopId                  String
+  shop                    Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  shopifyEvent            String
+  segmentEvent            String?
+  facebookEvent           String?
+  enabled                 Boolean             @default(true)
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  @@unique([shopId, shopifyEvent])
+  @@index([shopId])
+}
+
+// Billing subscriptions
+model Subscription {
+  id                      String              @id @default(uuid())
+  shopId                  String              @unique
+  shop                    Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  subscriptionId          String              @unique // Shopify subscription ID
+  planId                  String
+  status                  SubscriptionStatus  @default(PENDING)
+  
+  currentPeriodStart      DateTime
+  currentPeriodEnd        DateTime
+  trialEnd                DateTime?
+  
+  // Usage tracking
+  eventsThisMonth         Int                 @default(0)
+  lastResetDate           DateTime            @default(now())
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  @@index([shopId])
+  @@index([status])
+}
+
+// Event statistics for analytics
+model EventStats {
+  id                      String              @id @default(uuid())
+  shopId                  String
+  shop                    Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  date                    DateTime            @db.Date
+  eventType               String
+  destination             String              // 'segment' or 'facebook'
+  
+  count                   Int                 @default(0)
+  successCount            Int                 @default(0)
+  errorCount              Int                 @default(0)
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  @@unique([shopId, date, eventType, destination])
+  @@index([shopId, date])
+  @@index([shopId, eventType])
+}
+
+// Recent event logs for debugging
+model EventLog {
+  id                      String              @id @default(uuid())
+  shopId                  String
+  shop                    Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  eventType               String
+  destination             String
+  status                  EventStatus
+  
+  payload                 Json?
+  error                   String?
+  
+  timestamp               DateTime            @default(now())
+  
+  @@index([shopId, timestamp])
+  @@index([shopId, status])
+}
+
+// Shopify OAuth sessions
+model Session {
+  id                      String              @id
+  shopId                  String
+  shop                    Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  state                   String
+  isOnline                Boolean             @default(false)
+  scope                   String?
+  expires                 DateTime?
+  accessToken             String
+  userId                  String?
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  @@index([shopId])
+}
+
+// Enums
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum EventStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  RETRY
+}

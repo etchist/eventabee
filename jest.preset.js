@@ -2,6 +2,9 @@ const nxPreset = require('@nx/jest/preset').default;
 
 module.exports = {
   ...nxPreset,
+  transform: {
+    '^.+\\.[tj]sx?$': ['@swc/jest', { jsc: { transform: { react: { runtime: 'automatic' } } } }],
+  },
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',

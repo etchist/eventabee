@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { Card, Stack, Text, Button, Badge } from '@shopify/polaris';
 
 interface BillingStatusProps {
-  onSubscribe: () => void;
+  onSubscribe: (plan: string) => void;
 }
 
 export function BillingStatus({ onSubscribe }: BillingStatusProps) {
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const plans = [
     {
       name: 'Starter',
@@ -74,7 +76,12 @@ export function BillingStatus({ onSubscribe }: BillingStatusProps) {
               <Button
                 primary={plan.popular}
                 fullWidth
-                onClick={() => onSubscribe()}
+                onClick={() => {
+                  setSelectedPlan(plan.planId);
+                  onSubscribe(plan.planId);
+                }}
+                loading={selectedPlan === plan.planId}
+                disabled={selectedPlan !== null && selectedPlan !== plan.planId}
               >
                 Subscribe to {plan.name}
               </Button>

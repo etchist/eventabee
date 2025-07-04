@@ -1,5 +1,7 @@
-import { Session } from '@shopify/shopify-api';
+import { Session, GraphqlClient } from '@shopify/shopify-api';
 import { logger } from '@eventabee/shared-utils';
+import { prisma, withTransaction } from './database-service';
+import { SubscriptionStatus } from '../../../../generated/prisma';
 
 export interface BillingPlan {
   id: string;
@@ -76,8 +78,6 @@ export class BillingService {
     },
   ];
 
-  private subscriptions: Map<string, Subscription> = new Map();
-
   async getPlans(): Promise<BillingPlan[]> {
     return this.plans;
   }
@@ -89,6 +89,15 @@ export class BillingService {
     }
 
     try {
+      // Get or create shop record
+      const shop = await prisma.shop.findUnique({
+        where: { shop: session.shop! },
+      });
+
+      if (!shop) {
+        throw new Error(`Shop ${session.shop} not found`);
+      }
+
       // Create Shopify billing subscription
       const billingQuery = `
         mutation appSubscriptionCreate($name: String!, $returnUrl: URL!, $test: Boolean, $lineItems: [AppSubscriptionLineItemInput!]!) {
@@ -122,7 +131,7 @@ export class BillingService {
         ],
       };
 
-      const client = new (require('@shopify/shopify-api').GraphqlQueryError)(session);
+      const client = new GraphqlClient({ session });
       const response = await client.query({
         data: {
           query: billingQuery,
@@ -130,21 +139,36 @@ export class BillingService {
         },
       });
 
-      if (response.body?.data?.appSubscriptionCreate?.userErrors?.length > 0) {
-        const errors = response.body.data.appSubscriptionCreate.userErrors;
+      const responseData = (response.body as any)?.data?.appSubscriptionCreate;
+      
+      if (responseData?.userErrors?.length > 0) {
+        const errors = responseData.userErrors;
         throw new Error(`Billing creation failed: ${errors.map((e: any) => e.message).join(', ')}`);
       }
 
-      const confirmationUrl = response.body?.data?.appSubscriptionCreate?.confirmationUrl;
+      const confirmationUrl = responseData?.confirmationUrl;
+      const subscriptionId = responseData?.appSubscription?.id;
       
-      if (!confirmationUrl) {
+      if (!confirmationUrl || !subscriptionId) {
         throw new Error('Failed to create billing subscription');
       }
+
+      // Create pending subscription record
+      await prisma.subscription.create({
+        data: {
+          shopId: shop.id,
+          subscriptionId,
+          planId,
+          status: SubscriptionStatus.PENDING,
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: this.calculatePeriodEnd(plan.interval),
+        },
+      });
 
       logger.info('Billing subscription created', {
         shop: session.shop,
         planId,
-        subscriptionId: response.body?.data?.appSubscriptionCreate?.appSubscription?.id,
+        subscriptionId,
       });
 
       return confirmationUrl;
@@ -171,7 +195,7 @@ export class BillingService {
         }
       `;
 
-      const client = new (require('@shopify/shopify-api').GraphqlQueryError)(session);
+      const client = new GraphqlClient({ session });
       const response = await client.query({
         data: {
           query: billingQuery,
@@ -179,19 +203,17 @@ export class BillingService {
         },
       });
 
-      const subscription = response.body?.data?.node;
+      const subscription = (response.body as any)?.data?.node;
       
       if (subscription && subscription.status === 'ACTIVE') {
-        // Store subscription info
-        const sub: Subscription = {
-          id: subscription.id,
-          planId: this.extractPlanFromName(subscription.name),
-          status: 'active',
-          currentPeriodStart: new Date().toISOString(),
-          currentPeriodEnd: subscription.currentPeriodEnd,
-        };
-
-        this.subscriptions.set(session.shop!, sub);
+        // Update subscription status
+        await prisma.subscription.update({
+          where: { subscriptionId: chargeId },
+          data: {
+            status: SubscriptionStatus.ACTIVE,
+            currentPeriodEnd: new Date(subscription.currentPeriodEnd),
+          },
+        });
 
         logger.info('Billing subscription activated', {
           shop: session.shop,
@@ -205,7 +227,16 @@ export class BillingService {
   }
 
   async getSubscription(shop: string): Promise<Subscription | null> {
-    return this.subscriptions.get(shop) || null;
+    const shopRecord = await prisma.shop.findUnique({
+      where: { shop },
+      include: { subscription: true },
+    });
+
+    if (!shopRecord?.subscription) {
+      return null;
+    }
+
+    return this.mapSubscriptionToInterface(shopRecord.subscription);
   }
 
   async hasActiveSubscription(shop: string): Promise<boolean> {
@@ -215,8 +246,12 @@ export class BillingService {
   }
 
   async cancelSubscription(session: Session): Promise<void> {
-    const subscription = await this.getSubscription(session.shop!);
-    if (!subscription) {
+    const shop = await prisma.shop.findUnique({
+      where: { shop: session.shop! },
+      include: { subscription: true },
+    });
+
+    if (!shop?.subscription) {
       throw new Error('No active subscription found');
     }
 
@@ -236,26 +271,30 @@ export class BillingService {
         }
       `;
 
-      const client = new (require('@shopify/shopify-api').GraphqlQueryError)(session);
+      const client = new GraphqlClient({ session });
       const response = await client.query({
         data: {
           query: billingQuery,
-          variables: { id: subscription.id },
+          variables: { id: shop.subscription.subscriptionId },
         },
       });
 
-      if (response.body?.data?.appSubscriptionCancel?.userErrors?.length > 0) {
-        const errors = response.body.data.appSubscriptionCancel.userErrors;
+      const responseData = (response.body as any)?.data?.appSubscriptionCancel;
+      
+      if (responseData?.userErrors?.length > 0) {
+        const errors = responseData.userErrors;
         throw new Error(`Billing cancellation failed: ${errors.map((e: any) => e.message).join(', ')}`);
       }
 
       // Update local subscription status
-      subscription.status = 'cancelled';
-      this.subscriptions.set(session.shop!, subscription);
+      await prisma.subscription.update({
+        where: { id: shop.subscription.id },
+        data: { status: SubscriptionStatus.CANCELLED },
+      });
 
       logger.info('Billing subscription cancelled', {
         shop: session.shop,
-        subscriptionId: subscription.id,
+        subscriptionId: shop.subscription.subscriptionId,
       });
     } catch (error) {
       logger.error('Error cancelling billing subscription', { error, shop: session.shop });
@@ -280,8 +319,79 @@ export class BillingService {
     return { withinLimits, plan };
   }
 
-  private extractPlanFromName(subscriptionName: string): string {
-    const plan = this.plans.find(p => subscriptionName.includes(p.name));
-    return plan?.id || 'starter';
+  async updateEventCount(shop: string, increment = 1): Promise<void> {
+    await withTransaction(async (tx) => {
+      const shopRecord = await tx.shop.findUnique({
+        where: { shop },
+        include: { subscription: true },
+      });
+
+      if (!shopRecord?.subscription) {
+        return;
+      }
+
+      const subscription = shopRecord.subscription;
+      
+      // Check if we need to reset the monthly counter
+      const now = new Date();
+      const lastReset = new Date(subscription.lastResetDate);
+      if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+        await tx.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            eventsThisMonth: increment,
+            lastResetDate: now,
+          },
+        });
+      } else {
+        await tx.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            eventsThisMonth: {
+              increment,
+            },
+          },
+        });
+      }
+    });
+  }
+
+  async getUsageStats(shop: string): Promise<{ eventsThisMonth: number; limit: number }> {
+    const shopRecord = await prisma.shop.findUnique({
+      where: { shop },
+      include: { subscription: true },
+    });
+
+    if (!shopRecord?.subscription) {
+      return { eventsThisMonth: 0, limit: 0 };
+    }
+
+    const plan = this.plans.find(p => p.id === shopRecord.subscription.planId);
+    
+    return {
+      eventsThisMonth: shopRecord.subscription.eventsThisMonth,
+      limit: plan?.limits.eventsPerMonth || 0,
+    };
+  }
+
+  private calculatePeriodEnd(interval: 'monthly' | 'yearly'): Date {
+    const date = new Date();
+    if (interval === 'monthly') {
+      date.setMonth(date.getMonth() + 1);
+    } else {
+      date.setFullYear(date.getFullYear() + 1);
+    }
+    return date;
+  }
+
+  private mapSubscriptionToInterface(subscription: any): Subscription {
+    return {
+      id: subscription.subscriptionId,
+      planId: subscription.planId,
+      status: subscription.status.toLowerCase() as any,
+      currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+      currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+      trialEnd: subscription.trialEnd?.toISOString(),
+    };
   }
 }

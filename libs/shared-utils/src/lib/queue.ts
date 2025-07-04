@@ -37,7 +37,7 @@ export class MemoryQueue<T> {
     };
   }
 
-  async add(data: T, priority: number = 0): Promise<string> {
+  async add(data: T, priority = 0): Promise<string> {
     const task: QueueTask<T> = {
       id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       data,
@@ -89,7 +89,7 @@ export class MemoryQueue<T> {
         timeoutPromise,
       ]);
       
-    } catch (error) {
+    } catch {
       const maxAttempts = this.options.retryOptions?.maxAttempts || 3;
       
       if (task.attempts < maxAttempts) {
